@@ -127,32 +127,44 @@ enum MenuBarTitle {
 
     @MainActor
     static func make(_ store: UsageStore) -> NSAttributedString {
+        // Each line is "<label>\t<value>": labels (S/W) sit left-aligned at the
+        // margin, values are pulled to a right-aligned tab stop so the percent
+        // column lines up. needsReauth has no value column (no tab).
         let line1: String
         let line2: String
         let color: NSColor
+        var twoColumn = true
 
         let hasData = store.session != nil || store.weekly != nil
 
         if case .needsReauth = store.phase {
             (line1, line2, color) = ("⚠︎", "認証", .systemOrange)
+            twoColumn = false
         } else if hasData {
             // Show the latest known values even if the most recent refresh
             // errored (e.g. a transient 429) — better than blanking to "–".
-            line1 = "S \(UsageFormat.percentText(store.session?.utilization))"
-            line2 = "W \(UsageFormat.percentText(store.weekly?.utilization))"
+            line1 = "S\t\(UsageFormat.percentText(store.session?.utilization))"
+            line2 = "W\t\(UsageFormat.percentText(store.weekly?.utilization))"
             let peak = UsageFormat.peak(store.session?.utilization, store.weekly?.utilization)
             color = UsageFormat.nsColor(for: peak)
         } else if case .error = store.phase {
-            (line1, line2, color) = ("S –", "W –", .secondaryLabelColor)
+            (line1, line2, color) = ("S\t–", "W\t–", .secondaryLabelColor)
         } else {
-            (line1, line2, color) = ("S", "⋯", .secondaryLabelColor)
+            (line1, line2, color) = ("S\t⋯", "W\t", .secondaryLabelColor)
         }
 
         let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .right
+        paragraph.alignment = .left
         paragraph.lineSpacing = 0
         paragraph.maximumLineHeight = lineHeight
         paragraph.minimumLineHeight = lineHeight
+        if twoColumn {
+            // Right-aligned column end, wide enough for the label + widest value.
+            let labelWidth = ("W" as NSString).size(withAttributes: [.font: font]).width
+            let valueWidth = ("100%" as NSString).size(withAttributes: [.font: font]).width
+            let column = ceil(labelWidth + 1 + valueWidth)
+            paragraph.tabStops = [NSTextTab(textAlignment: .right, location: column)]
+        }
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
