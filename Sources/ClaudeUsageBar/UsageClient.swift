@@ -2,6 +2,7 @@ import Foundation
 
 enum UsageError: Error {
     case unauthorized
+    case rateLimited(retryAfter: TimeInterval?)
     case http(Int)
     case network(Error)
 }
@@ -39,6 +40,9 @@ struct UsageClient {
             return try JSONDecoder().decode(UsageResponse.self, from: data)
         case 401, 403:
             throw UsageError.unauthorized
+        case 429:
+            let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
+            throw UsageError.rateLimited(retryAfter: retryAfter)
         default:
             throw UsageError.http(http.statusCode)
         }

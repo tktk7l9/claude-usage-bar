@@ -20,13 +20,21 @@ final class UsageStore {
 
     private let client = UsageClient()
     private var pollTask: Task<Void, Never>?
+    private var lastAttempt: Date?
+    /// Extra seconds to wait before the next poll, set when rate-limited or on
+    /// transient errors so we don't hammer the endpoint.
+    private var backoff: TimeInterval = 0
+
+    /// Minimum gap between fetches so wake + popover-open + the timed poll
+    /// firing together don't burst the endpoint (which returns 429).
+    private let minGap: TimeInterval = 8
 
     /// Poll interval in seconds. Override with `defaults write
-    /// com.tktk7l9.claude-usage-bar pollInterval 30`. The endpoint is a cheap
-    /// metadata read and does not consume plan usage, but we floor at 15s.
+    /// com.tktk7l9.claude-usage-bar pollInterval 90`. The endpoint is a cheap
+    /// metadata read and does not consume plan usage; floored at 30s.
     var pollInterval: TimeInterval {
         let stored = UserDefaults.standard.double(forKey: "pollInterval")
-        return stored >= 15 ? stored : 60
+        return stored >= 30 ? stored : 60
     }
 
     init() {
@@ -45,13 +53,20 @@ final class UsageStore {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                await self.refresh()
-                try? await Task.sleep(for: .seconds(self.pollInterval))
+                await self.refresh(force: true)
+                try? await Task.sleep(for: .seconds(self.pollInterval + self.backoff))
             }
         }
     }
 
-    func refresh() async {
+    /// `force` (timed poll) bypasses the min-gap throttle. UI-triggered
+    /// refreshes (popover open, wake) pass force=false and are throttled.
+    /// On error the last good values are kept so the menu bar doesn't blank.
+    func refresh(force: Bool = false) async {
+        if !force, let last = lastAttempt, Date().timeIntervalSince(last) < minGap {
+            return
+        }
+        lastAttempt = Date()
         do {
             let token = try KeychainReader.readToken()
             let response = try await client.fetch(token: token)
@@ -60,14 +75,22 @@ final class UsageStore {
             opus = response.sevenDayOpus
             lastUpdated = Date()
             phase = .ok
+            backoff = 0
         } catch UsageError.unauthorized {
             phase = .needsReauth
+            backoff = 0
+        } catch UsageError.rateLimited(let retryAfter) {
+            phase = .error("レート制限中（自動再試行）")
+            backoff = max(retryAfter ?? 120, 120)
         } catch is KeychainError {
             phase = .error("Keychainからトークンを読めません")
+            backoff = 0
         } catch UsageError.http(let code) {
             phase = .error("HTTP \(code)")
+            backoff = 30
         } catch {
             phase = .error("更新に失敗しました")
+            backoff = 30
         }
     }
 }

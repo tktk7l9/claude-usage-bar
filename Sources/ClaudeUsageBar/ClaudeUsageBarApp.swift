@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -5,9 +6,12 @@ enum Main {
     static func main() {
         if CommandLine.arguments.contains("--once") {
             runOnce()
-        } else {
-            ClaudeUsageBarApp.main()
+            return
         }
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.run()
     }
 
     /// One-shot diagnostic: read the Keychain token, fetch usage, print it, exit.
@@ -36,54 +40,149 @@ enum Main {
     }
 }
 
-struct ClaudeUsageBarApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var store = UsageStore()
-
-    var body: some Scene {
-        MenuBarExtra {
-            UsagePopover(store: store)
-        } label: {
-            MenuBarLabel(store: store)
-        }
-        .menuBarExtraStyle(.window)
-    }
-}
-
-/// Forces accessory activation policy so the app lives only in the menu bar
-/// (no Dock icon) even when launched via `swift run` without an app bundle.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var statusController: StatusController?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Menu-bar only: no Dock icon, no app menu.
         NSApp.setActivationPolicy(.accessory)
+        statusController = StatusController()
     }
 }
 
-/// The always-visible status-bar text, e.g. "S 47% · W 5%".
-struct MenuBarLabel: View {
-    let store: UsageStore
+/// Owns the NSStatusItem and its popover. AppKit's status button lets us render
+/// a two-line attributed title (which SwiftUI's MenuBarExtra label cannot fit).
+@MainActor
+final class StatusController {
+    private let store = UsageStore()
+    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private let popover = NSPopover()
 
-    var body: some View {
-        switch store.phase {
-        case .loading:
-            Text("⋯")
-        case .needsReauth:
-            Text("⚠︎ 再認証")
-        case .error:
-            Text("S – · W –")
-        case .ok:
-            Text(text)
-                .monospacedDigit()
-                .foregroundStyle(UsageFormat.color(for: peak))
+    init() {
+        if let button = statusItem.button {
+            button.action = #selector(togglePopover(_:))
+            button.target = self
+            // Allow the attributed newline to actually wrap to a second line.
+            button.lineBreakMode = .byWordWrapping
+        }
+
+        popover.behavior = .transient
+        let hosting = NSHostingController(rootView: UsagePopover(store: store))
+        hosting.sizingOptions = .preferredContentSize
+        popover.contentViewController = hosting
+
+        render()
+        observe()
+    }
+
+    /// Re-render the title whenever the tracked store values change, then re-arm
+    /// (Observation fires onChange once per tracking scope).
+    private func observe() {
+        withObservationTracking {
+            _ = store.phase
+            _ = store.session?.utilization
+            _ = store.weekly?.utilization
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.render()
+                self?.observe()
+            }
         }
     }
 
-    private var text: String {
-        let s = UsageFormat.percentText(store.session?.utilization)
-        let w = UsageFormat.percentText(store.weekly?.utilization)
-        return "S \(s) · W \(w)"
+    private func render() {
+        guard let button = statusItem.button else { return }
+        // Render the two lines to an image: the status bar centers an image
+        // vertically (unlike a text title, which sits high), so this keeps the
+        // label centered on both notched and external displays.
+        button.image = MenuBarTitle.image(MenuBarTitle.make(store))
+        button.imagePosition = .imageOnly
     }
 
-    private var peak: Double? {
-        UsageFormat.peak(store.session?.utilization, store.weekly?.utilization)
+    @objc private func togglePopover(_ sender: Any?) {
+        guard let button = statusItem.button else { return }
+        if popover.isShown {
+            popover.performClose(sender)
+        } else {
+            Task { await store.refresh() }
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            popover.contentViewController?.view.window?.makeKey()
+        }
+    }
+}
+
+/// Builds and renders the two-line menu-bar label:
+///   S 47%
+///   W 5%
+enum MenuBarTitle {
+    /// Tweak these to taste. The line height is the box per line; the two boxes
+    /// must fit the menu bar height (~22pt), so keep ~11 or less.
+    static let fontSize: CGFloat = 11
+    static let weight: NSFont.Weight = .semibold
+    static let lineHeight: CGFloat = 11
+    /// Extra downward shift (points) applied on top of vertical centering.
+    static let verticalNudge: CGFloat = 3.0
+
+    static var font: NSFont { .monospacedDigitSystemFont(ofSize: fontSize, weight: weight) }
+
+    @MainActor
+    static func make(_ store: UsageStore) -> NSAttributedString {
+        let line1: String
+        let line2: String
+        let color: NSColor
+
+        let hasData = store.session != nil || store.weekly != nil
+
+        if case .needsReauth = store.phase {
+            (line1, line2, color) = ("⚠︎", "認証", .systemOrange)
+        } else if hasData {
+            // Show the latest known values even if the most recent refresh
+            // errored (e.g. a transient 429) — better than blanking to "–".
+            line1 = "S \(UsageFormat.percentText(store.session?.utilization))"
+            line2 = "W \(UsageFormat.percentText(store.weekly?.utilization))"
+            let peak = UsageFormat.peak(store.session?.utilization, store.weekly?.utilization)
+            color = UsageFormat.nsColor(for: peak)
+        } else if case .error = store.phase {
+            (line1, line2, color) = ("S –", "W –", .secondaryLabelColor)
+        } else {
+            (line1, line2, color) = ("S", "⋯", .secondaryLabelColor)
+        }
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .right
+        paragraph.lineSpacing = 0
+        paragraph.maximumLineHeight = lineHeight
+        paragraph.minimumLineHeight = lineHeight
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph,
+        ]
+        return NSAttributedString(string: "\(line1)\n\(line2)", attributes: attributes)
+    }
+
+    /// Rasterizes the two-line title into a (non-template, so colored) image as
+    /// tall as the menu bar. We center the *ink* (cap-height of the two lines),
+    /// not the line boxes — line boxes carry empty descender space at the bottom
+    /// which otherwise makes the text look top-heavy. Uses a flipped canvas
+    /// (origin top-left) so the layout math reads top-down.
+    static func image(_ attributed: NSAttributedString) -> NSImage {
+        let width = ceil(attributed.size().width)
+        let height = NSStatusBar.system.thickness
+        let cap = font.capHeight
+        let ascent = font.ascender
+
+        // Ink block spans line1 cap-top down to line2 baseline: lineHeight + cap.
+        // Center that block, then back out the box top from the cap top.
+        let inkTop = (height - (lineHeight + cap)) / 2
+        let y0 = inkTop - (ascent - cap) + verticalNudge
+
+        let image = NSImage(size: NSSize(width: width, height: height), flipped: true) { _ in
+            attributed.draw(in: NSRect(x: 0, y: y0, width: width, height: lineHeight * 2 + 6))
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }

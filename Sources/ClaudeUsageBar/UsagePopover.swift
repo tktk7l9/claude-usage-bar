@@ -33,7 +33,6 @@ struct UsagePopover: View {
         }
         .padding(14)
         .frame(width: 280)
-        .task { await store.refresh() }
     }
 
     @ViewBuilder private var meters: some View {

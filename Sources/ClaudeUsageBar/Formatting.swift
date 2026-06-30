@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Shared helpers for turning usage numbers into display strings/colors.
@@ -15,6 +16,16 @@ enum UsageFormat {
         case ..<70: return .green
         case ..<90: return .yellow
         default: return .red
+        }
+    }
+
+    /// AppKit variant of `color(for:)` for the NSStatusItem title.
+    static func nsColor(for value: Double?) -> NSColor {
+        guard let value else { return .secondaryLabelColor }
+        switch value {
+        case ..<70: return .systemGreen
+        case ..<90: return .systemYellow
+        default: return .systemRed
         }
     }
 
