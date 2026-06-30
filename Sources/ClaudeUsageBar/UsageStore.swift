@@ -54,23 +54,21 @@ final class UsageStore {
             Task { @MainActor in await self?.refresh() }
         }
         start()
-        Task { await loadProfile() }
     }
 
-    /// Fetches account/org info once per launch (rarely changes). Best-effort:
-    /// on failure (e.g. transient 429) org/email simply stay hidden and we retry
-    /// on the next launch.
-    func loadProfile() async {
+    /// Fetches account/org info once (rarely changes). Best-effort and triggered
+    /// after a successful usage fetch, so it retries on later polls if the first
+    /// attempt failed (e.g. a transient 429) — no extra request once loaded.
+    private func loadProfile(token: String) async {
         guard !profileLoaded else { return }
         do {
-            let creds = try KeychainReader.read()
-            let profile = try await client.fetchProfile(token: creds.accessToken)
+            let profile = try await client.fetchProfile(token: token)
             org = profile.organization?.name
             email = profile.account?.email
             subscriptionStatus = profile.organization?.subscriptionStatus
             if org != nil || email != nil { profileLoaded = true }
         } catch {
-            // ignore; org/email are optional
+            // ignore; org/email are optional and will be retried next poll
         }
     }
 
@@ -110,6 +108,7 @@ final class UsageStore {
             lastUpdated = Date()
             phase = .ok
             backoff = 0
+            await loadProfile(token: creds.accessToken)
         } catch UsageError.unauthorized {
             phase = .needsReauth
             backoff = 0

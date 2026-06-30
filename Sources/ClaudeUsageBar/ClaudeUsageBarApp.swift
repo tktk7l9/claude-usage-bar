@@ -117,6 +117,7 @@ final class StatusController {
             popover.performClose(sender)
         } else {
             Task { await store.refresh() }
+            NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }

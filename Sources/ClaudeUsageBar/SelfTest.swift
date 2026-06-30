@@ -77,6 +77,37 @@ enum SelfTest {
         check(UsageFormat.countdown(to: Date(timeIntervalSinceNow: -60)) == nil, "countdown(past)")
         check(UsageFormat.countdown(to: Date(timeIntervalSinceNow: 3600)) != nil, "countdown(future)")
 
+        // JSON decoding — sample payloads matching the live endpoints, so a
+        // schema change in a future CLI release is caught here.
+        let usageJSON = Data("""
+        {"five_hour":{"utilization":47.0,"resets_at":"2026-06-30T05:19:59.797027+00:00"},
+         "seven_day":{"utilization":5,"resets_at":"2026-07-06T23:59:59+00:00"},
+         "seven_day_opus":null,"seven_day_sonnet":null}
+        """.utf8)
+        if let usage = try? JSONDecoder().decode(UsageResponse.self, from: usageJSON) {
+            check(usage.fiveHour?.utilization == 47, "decode usage five_hour")
+            check(usage.sevenDay?.utilization == 5, "decode usage seven_day")
+            check(usage.sevenDayOpus == nil, "decode usage seven_day_opus null")
+            check(ISODate.parse(usage.fiveHour?.resetsAt) != nil, "decode usage resets_at parses")
+        } else {
+            check(false, "decode UsageResponse")
+        }
+
+        let profileJSON = Data("""
+        {"account":{"email":"x@example.com","display_name":"Tak"},
+         "organization":{"name":"Personal","subscription_status":"active"}}
+        """.utf8)
+        let profileDecoder = JSONDecoder()
+        profileDecoder.keyDecodingStrategy = .convertFromSnakeCase
+        if let profile = try? profileDecoder.decode(ProfileResponse.self, from: profileJSON) {
+            check(profile.account?.email == "x@example.com", "decode profile email")
+            check(profile.account?.displayName == "Tak", "decode profile display_name→displayName")
+            check(profile.organization?.name == "Personal", "decode profile org name")
+            check(profile.organization?.subscriptionStatus == "active", "decode profile subscription_status")
+        } else {
+            check(false, "decode ProfileResponse")
+        }
+
         print(failures == 0 ? "\nAll self-tests passed." : "\n\(failures) self-test(s) FAILED.")
         return failures == 0 ? 0 : 1
     }

@@ -68,16 +68,19 @@ struct UsagePopover: View {
         }
     }
 
-    /// Warning shown when session or weekly usage is high. `critical` at ≥90%.
+    /// Warning shown when session or weekly usage is high, derived from the same
+    /// Severity thresholds the menu-bar color uses (≥100% is the only extra case).
     private var limitNotice: (text: String, critical: Bool)? {
         guard store.phase == .ok else { return nil }
-        guard let peak = UsageFormat.peak(store.session?.utilization, store.weekly?.utilization) else {
+        let peak = UsageFormat.peak(store.session?.utilization, store.weekly?.utilization)
+        switch UsageFormat.severity(for: peak) {
+        case .critical:
+            return ((peak ?? 0) >= 100 ? "上限に到達しました" : "まもなく上限です", true)
+        case .warning:
+            return ("上限が近づいています", false)
+        case .normal, .unknown:
             return nil
         }
-        if peak >= 100 { return ("上限に到達しました", true) }
-        if peak >= 90 { return ("まもなく上限です", true) }
-        if peak >= 70 { return ("上限が近づいています", false) }
-        return nil
     }
 
     private var reauthView: some View {

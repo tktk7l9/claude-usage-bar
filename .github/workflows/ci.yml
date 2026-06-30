@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build
+        run: swift build
+
+      # --selftest exits before any AppKit/NSApplication code, so it runs fine
+      # on a headless CI runner and returns non-zero if any check fails.
+      - name: Self-tests
+        run: swift run ClaudeUsageBar --selftest
