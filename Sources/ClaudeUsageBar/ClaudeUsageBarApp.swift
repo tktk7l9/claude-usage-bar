@@ -22,8 +22,8 @@ enum Main {
                 let response = try await UsageClient().fetch(token: token)
                 let s = response.fiveHour
                 let w = response.sevenDay
-                print("session:  \(UsageFormat.percentText(s?.utilization))  resets \(UsageFormat.relativeReset(s?.resetsAt) ?? "?")")
-                print("weekly:   \(UsageFormat.percentText(w?.utilization))  resets \(UsageFormat.relativeReset(w?.resetsAt) ?? "?")")
+                print("session:  \(UsageFormat.percentText(s?.utilization))  resets \(UsageFormat.resetDescription(s?.resetsAt) ?? "?")")
+                print("weekly:   \(UsageFormat.percentText(w?.utilization))  resets \(UsageFormat.resetDescription(w?.resetsAt) ?? "?")")
                 if let opus = response.sevenDayOpus?.utilization {
                     print("opus:     \(UsageFormat.percentText(opus))")
                 }

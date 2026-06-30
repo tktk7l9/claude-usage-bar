@@ -33,6 +33,7 @@ struct UsagePopover: View {
         }
         .padding(14)
         .frame(width: 280)
+        .task { await store.refresh() }
     }
 
     @ViewBuilder private var meters: some View {
@@ -94,10 +95,11 @@ private struct MeterRow: View {
             }
             ProgressView(value: (utilization ?? 0) / 100)
                 .tint(UsageFormat.color(for: utilization))
-            if let reset = UsageFormat.relativeReset(window?.resetsAt) {
+            if let reset = UsageFormat.resetDescription(window?.resetsAt) {
                 Text("リセット \(reset)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

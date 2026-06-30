@@ -28,12 +28,47 @@ enum UsageFormat {
         }
     }
 
-    /// "約2時間後" style relative reset text from an ISO8601 string.
-    static func relativeReset(_ isoString: String?) -> String? {
-        relative(from: ISODate.parse(isoString))
+    /// Reset description with minute precision, e.g.
+    /// "14:19（あと3時間21分）" or "7/6(火) 23:59（あと6日10時間）".
+    static func resetDescription(_ isoString: String?) -> String? {
+        guard let date = ISODate.parse(isoString) else { return nil }
+        let absolute = absoluteTime(date)
+        if let cd = countdown(to: date) {
+            return "\(absolute)（あと\(cd)）"
+        }
+        return absolute
     }
 
-    /// "5分前" / "2時間後" relative text from a Date.
+    /// Wall-clock reset time to the minute, contextualized by day:
+    /// today → "14:19", tomorrow → "明日 14:19", else → "7/6(火) 23:59".
+    static func absoluteTime(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        if calendar.isDateInToday(date) {
+            formatter.dateFormat = "HH:mm"
+        } else if calendar.isDateInTomorrow(date) {
+            formatter.dateFormat = "'明日' HH:mm"
+        } else {
+            formatter.dateFormat = "M/d'('E')' HH:mm"
+        }
+        return formatter.string(from: date)
+    }
+
+    /// Minute-precision countdown to a future date, e.g. "3時間21分" /
+    /// "6日10時間". Returns nil if the date is in the past.
+    static func countdown(to date: Date) -> String? {
+        let now = Date()
+        guard date > now else { return nil }
+        let formatter = DateComponentsFormatter()
+        formatter.calendar = Calendar.current
+        formatter.unitsStyle = .abbreviated
+        formatter.allowedUnits = [.day, .hour, .minute]
+        formatter.maximumUnitCount = 2
+        return formatter.string(from: now, to: date)
+    }
+
+    /// "5分前" / "2時間後" relative text from a Date (used for "last updated").
     static func relative(from date: Date?) -> String? {
         guard let date else { return nil }
         let formatter = RelativeDateTimeFormatter()
