@@ -149,6 +149,16 @@ enum UsageFormat {
         return formatter.string(from: now, to: date)
     }
 
+    /// Proactive re-auth notice when the token expires within the next hour.
+    /// We never refresh (Claude Code owns the refresh token); using Claude Code
+    /// refreshes it. Returns nil if there's no expiry or it's not imminent.
+    static func reauthNotice(expiresAt: Date?, now: Date = Date()) -> String? {
+        guard let expiresAt else { return nil }
+        let remaining = expiresAt.timeIntervalSince(now)
+        guard remaining > 0, remaining <= 3600 else { return nil }
+        return "まもなく要再認証 \(absoluteTime(expiresAt)) — Claude Code 利用で自動更新"
+    }
+
     /// "5分前" / "2時間後" relative text from a Date (used for "last updated").
     static func relative(from date: Date?) -> String? {
         guard let date else { return nil }

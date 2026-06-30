@@ -31,6 +31,10 @@ enum Main {
                 print("plan:     \(UsageFormat.planName(creds.subscriptionType) ?? "?")")
                 print("model:    \(UsageFormat.modelName(settings.model) ?? "?")")
                 print("effort:   \(UsageFormat.effortName(settings.effortLevel) ?? "?")")
+                if let expMs = creds.expiresAt {
+                    let exp = Date(timeIntervalSince1970: expMs / 1000)
+                    print("token exp:\(UsageFormat.absoluteTime(exp))")
+                }
                 if let profile = try? await client.fetchProfile(token: creds.accessToken) {
                     print("org:      \(profile.organization?.name ?? "?")")
                     print("email:    \(profile.account?.email ?? "?")")

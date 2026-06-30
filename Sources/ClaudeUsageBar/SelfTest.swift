@@ -77,6 +77,12 @@ enum SelfTest {
         check(UsageFormat.countdown(to: Date(timeIntervalSinceNow: -60)) == nil, "countdown(past)")
         check(UsageFormat.countdown(to: Date(timeIntervalSinceNow: 3600)) != nil, "countdown(future)")
 
+        // reauthNotice: only within the next hour
+        check(UsageFormat.reauthNotice(expiresAt: nil) == nil, "reauthNotice(nil)")
+        check(UsageFormat.reauthNotice(expiresAt: Date(timeIntervalSinceNow: -60)) == nil, "reauthNotice(expired)")
+        check(UsageFormat.reauthNotice(expiresAt: Date(timeIntervalSinceNow: 7200)) == nil, "reauthNotice(2h away)")
+        check(UsageFormat.reauthNotice(expiresAt: Date(timeIntervalSinceNow: 1800)) != nil, "reauthNotice(30m away)")
+
         // JSON decoding — sample payloads matching the live endpoints, so a
         // schema change in a future CLI release is caught here.
         let usageJSON = Data("""

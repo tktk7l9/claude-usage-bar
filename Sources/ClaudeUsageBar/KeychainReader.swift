@@ -14,6 +14,9 @@ enum KeychainReader {
         let accessToken: String
         /// e.g. "pro" / "max" — the plan tied to the logged-in account.
         let subscriptionType: String?
+        /// Access-token expiry as epoch milliseconds (for proactive re-auth
+        /// warnings; we never refresh — Claude Code owns that).
+        let expiresAt: Double?
     }
 
     /// The credentials blob Claude Code stores in the macOS Keychain under the
@@ -24,6 +27,7 @@ enum KeychainReader {
         struct OAuth: Decodable {
             let accessToken: String
             let subscriptionType: String?
+            let expiresAt: Double?
         }
         let claudeAiOauth: OAuth
     }
@@ -53,7 +57,8 @@ enum KeychainReader {
         }
         return Credentials(
             accessToken: blob.claudeAiOauth.accessToken,
-            subscriptionType: blob.claudeAiOauth.subscriptionType
+            subscriptionType: blob.claudeAiOauth.subscriptionType,
+            expiresAt: blob.claudeAiOauth.expiresAt
         )
     }
 

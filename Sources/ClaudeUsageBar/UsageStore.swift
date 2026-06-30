@@ -26,6 +26,7 @@ final class UsageStore {
     private(set) var org: String?
     private(set) var email: String?
     private(set) var subscriptionStatus: String?
+    private(set) var tokenExpiresAt: Date?
 
     private let client = UsageClient()
     private var pollTask: Task<Void, Never>?
@@ -100,6 +101,7 @@ final class UsageStore {
         do {
             let creds = try KeychainReader.read()
             plan = UsageFormat.planName(creds.subscriptionType)
+            tokenExpiresAt = creds.expiresAt.map { Date(timeIntervalSince1970: $0 / 1000) }
             let response = try await client.fetch(token: creds.accessToken)
             session = response.fiveHour
             weekly = response.sevenDay

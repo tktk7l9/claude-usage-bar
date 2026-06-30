@@ -39,6 +39,13 @@ struct UsagePopover: View {
                     .foregroundStyle(notice.critical ? .red : .orange)
             }
 
+            if store.phase == .ok, let reauth = UsageFormat.reauthNotice(expiresAt: store.tokenExpiresAt) {
+                Label(reauth, systemImage: "clock.badge.exclamationmark")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Divider()
             footer
         }
