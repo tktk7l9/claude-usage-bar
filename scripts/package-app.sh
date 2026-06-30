@@ -29,8 +29,16 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_PATH" "$APP/Contents/MacOS/${APP_NAME}"
 cp "Resources/Info.plist" "$APP/Contents/Info.plist"
 
-echo "==> codesign (ad-hoc)"
-codesign --force --deep --sign - "$APP"
+SIGN_ID="ClaudeUsageBar Self-Signed"
+# No -v: a self-signed cert is "not trusted" by policy (which excludes it from
+# -v) but codesign signs with it fine for local use.
+if security find-identity -p codesigning 2>/dev/null | grep -q "$SIGN_ID"; then
+    echo "==> codesign ($SIGN_ID — stable identity)"
+    codesign --force --deep --sign "$SIGN_ID" "$APP"
+else
+    echo "==> codesign (ad-hoc; run scripts/create-signing-cert.sh for a stable identity)"
+    codesign --force --deep --sign - "$APP"
+fi
 
 echo "built: $(pwd)/$APP"
 

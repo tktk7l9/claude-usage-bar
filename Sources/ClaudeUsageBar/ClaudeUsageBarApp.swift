@@ -4,6 +4,9 @@ import SwiftUI
 @main
 enum Main {
     static func main() {
+        if CommandLine.arguments.contains("--selftest") {
+            exit(SelfTest.run())
+        }
         if CommandLine.arguments.contains("--once") {
             runOnce()
             return

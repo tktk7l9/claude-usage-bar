@@ -33,6 +33,12 @@ struct UsagePopover: View {
                 meters
             }
 
+            if let notice = limitNotice {
+                Label(notice.text, systemImage: notice.critical ? "exclamationmark.triangle.fill" : "exclamationmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(notice.critical ? .red : .orange)
+            }
+
             Divider()
             footer
         }
@@ -56,7 +62,22 @@ struct UsagePopover: View {
             if store.opus != nil {
                 MeterRow(title: "Opus（週間）", window: store.opus)
             }
+            if store.sonnet != nil {
+                MeterRow(title: "Sonnet（週間）", window: store.sonnet)
+            }
         }
+    }
+
+    /// Warning shown when session or weekly usage is high. `critical` at ≥90%.
+    private var limitNotice: (text: String, critical: Bool)? {
+        guard store.phase == .ok else { return nil }
+        guard let peak = UsageFormat.peak(store.session?.utilization, store.weekly?.utilization) else {
+            return nil
+        }
+        if peak >= 100 { return ("上限に到達しました", true) }
+        if peak >= 90 { return ("まもなく上限です", true) }
+        if peak >= 70 { return ("上限が近づいています", false) }
+        return nil
     }
 
     private var reauthView: some View {
@@ -75,11 +96,17 @@ struct UsagePopover: View {
             if store.org != nil || store.email != nil {
                 VStack(alignment: .leading, spacing: 1) {
                     if let org = store.org {
-                        Text(org)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                        HStack(spacing: 4) {
+                            Text(org)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            if let status = store.subscriptionStatus {
+                                Text("· \(status)")
+                                    .foregroundStyle(status == "active" ? Color.green : Color.orange)
+                            }
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                     }
                     if let email = store.email {
                         Text(email)

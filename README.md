@@ -51,23 +51,41 @@ open /Applications/ClaudeUsageBar.app
 
 ## 設定
 
-ポーリング間隔（秒、最小 15、既定 60）:
+ポーリング間隔（秒、最小 30、既定 60）:
 
 ```sh
-defaults write com.tktk7l9.claude-usage-bar pollInterval 30
+defaults write com.tktk7l9.claude-usage-bar pollInterval 90
+```
+
+## テスト
+
+純粋ロジック（整形・パース・しきい値）のセルフテスト。XCTest/Swift Testing は
+Command Line Tools のみの環境では動かないため、依存ゼロのセルフテストにしている:
+
+```sh
+swift run ClaudeUsageBar --selftest   # 失敗時は非ゼロ終了
+swift run ClaudeUsageBar --once       # Keychain+APIまで通す疎通確認
 ```
 
 ## Keychain ダイアログを再表示させたくない場合
 
-アドホック署名（`codesign --sign -`）は再ビルドのたびに署名が変わるため、Keychain 許可が再要求される。固定したい場合は自己署名証明書を作成し、`scripts/package-app.sh` の `--sign -` をその証明書名に置き換える:
+アドホック署名は再ビルドのたびに署名が変わるため Keychain 許可が再要求される。
+固定したい場合は自己署名のコード署名証明書を一度だけ作成する:
 
-1. キーチェーンアクセス → 証明書アシスタント → 自分に証明書を作成（コード署名用）
-2. `codesign --force --deep --sign "<証明書名>" ClaudeUsageBar.app`
+```sh
+./scripts/create-signing-cert.sh     # 自己署名証明書を作成（sudo不要）
+./scripts/package-app.sh --install   # 以後この証明書で署名（自動検出）
+```
 
-## 状態表示
+証明書がある場合 `package-app.sh` は自動でそれを使う（なければアドホック）。
+署名が安定するので、最初の1回「常に許可」を押せば以後の再ビルドで再要求されない。
 
-- `S 47% · W 5%` — 通常。最大使用率に応じて緑 / 黄(70%+) / 赤(90%+)。
-- `⚠︎ 再認証` — トークン失効（401）。Claude Code で一度コマンドを実行するとトークンが更新される。
-- `S – · W –` — ネットワーク等の一時エラー。次のポーリングで自動復帰。
+## 状態表示（メニューバー / ポップオーバー）
+
+- `S 47%` / `W 5%`（2行）— 通常。最大使用率に応じて緑 / 黄(70%+) / 赤(90%+)。
+- `⚠︎` — トークン失効（401）。Claude Code で一度コマンドを実行するとトークンが更新される。
+- 一時的な 429・通信エラー中は直前の数値を保持（`–` にしない）。
+- ポップオーバー: セッション/週間（+あれば Opus/Sonnet）のメーターとリセット時刻、
+  プラン・モデル・effort、組織名・メール、上限警告を表示。
 
 Not affiliated with Anthropic. 個人用ツール。

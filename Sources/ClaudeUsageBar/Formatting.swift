@@ -3,19 +3,37 @@ import SwiftUI
 
 /// Shared helpers for turning usage numbers into display strings/colors.
 enum UsageFormat {
+    /// Severity buckets by utilization (0–100).
+    enum Severity {
+        case unknown   // no data
+        case normal    // < 70
+        case warning   // 70..<90
+        case critical  // >= 90
+    }
+
     /// "47%" / "–" for a 0–100 utilization value.
     static func percentText(_ value: Double?) -> String {
         guard let value else { return "–" }
         return "\(Int(value.rounded()))%"
     }
 
-    /// Severity color by utilization: green < 70 ≤ yellow < 90 ≤ red.
-    static func color(for value: Double?) -> Color {
-        guard let value else { return .secondary }
+    /// Bucket a utilization value: normal < 70 ≤ warning < 90 ≤ critical.
+    static func severity(for value: Double?) -> Severity {
+        guard let value else { return .unknown }
         switch value {
-        case ..<70: return .green
-        case ..<90: return .yellow
-        default: return .red
+        case ..<70: return .normal
+        case ..<90: return .warning
+        default: return .critical
+        }
+    }
+
+    /// SwiftUI color for a utilization value (popover meters).
+    static func color(for value: Double?) -> Color {
+        switch severity(for: value) {
+        case .unknown: return .secondary
+        case .normal: return .green
+        case .warning: return .yellow
+        case .critical: return .red
         }
     }
 
@@ -73,11 +91,11 @@ enum UsageFormat {
 
     /// AppKit variant of `color(for:)` for the NSStatusItem title.
     static func nsColor(for value: Double?) -> NSColor {
-        guard let value else { return .secondaryLabelColor }
-        switch value {
-        case ..<70: return .systemGreen
-        case ..<90: return .systemYellow
-        default: return .systemRed
+        switch severity(for: value) {
+        case .unknown: return .secondaryLabelColor
+        case .normal: return .systemGreen
+        case .warning: return .systemYellow
+        case .critical: return .systemRed
         }
     }
 

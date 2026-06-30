@@ -15,6 +15,7 @@ final class UsageStore {
     private(set) var session: UsageResponse.Window?
     private(set) var weekly: UsageResponse.Window?
     private(set) var opus: UsageResponse.Window?
+    private(set) var sonnet: UsageResponse.Window?
     private(set) var lastUpdated: Date?
     private(set) var phase: Phase = .loading
     /// Account plan (e.g. "Pro"), Claude Code default model ("Opus") and effort
@@ -24,6 +25,7 @@ final class UsageStore {
     private(set) var effort: String?
     private(set) var org: String?
     private(set) var email: String?
+    private(set) var subscriptionStatus: String?
 
     private let client = UsageClient()
     private var pollTask: Task<Void, Never>?
@@ -65,6 +67,7 @@ final class UsageStore {
             let profile = try await client.fetchProfile(token: creds.accessToken)
             org = profile.organization?.name
             email = profile.account?.email
+            subscriptionStatus = profile.organization?.subscriptionStatus
             if org != nil || email != nil { profileLoaded = true }
         } catch {
             // ignore; org/email are optional
@@ -103,6 +106,7 @@ final class UsageStore {
             session = response.fiveHour
             weekly = response.sevenDay
             opus = response.sevenDayOpus
+            sonnet = response.sevenDaySonnet
             lastUpdated = Date()
             phase = .ok
             backoff = 0
