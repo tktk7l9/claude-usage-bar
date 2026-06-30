@@ -19,6 +19,58 @@ enum UsageFormat {
         }
     }
 
+    /// Friendly model name from a Claude Code model id/alias, e.g.
+    /// "opus" → "Opus", "claude-opus-4-8" → "Opus 4.8".
+    static func modelName(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let lower = raw.lowercased()
+        let family: String?
+        if lower.contains("opus") { family = "Opus" }
+        else if lower.contains("sonnet") { family = "Sonnet" }
+        else if lower.contains("haiku") { family = "Haiku" }
+        else if lower.contains("fable") { family = "Fable" }
+        else { family = nil }
+
+        guard let family else {
+            return raw.prefix(1).uppercased() + raw.dropFirst()
+        }
+        if let range = lower.range(of: #"\d+[-.]\d+"#, options: .regularExpression) {
+            let version = lower[range].replacingOccurrences(of: "-", with: ".")
+            return "\(family) \(version)"
+        }
+        return family
+    }
+
+    /// Friendly effort level, e.g. "xhigh" → "xHigh".
+    static func effortName(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        switch raw.lowercased() {
+        case "low": return "Low"
+        case "medium": return "Medium"
+        case "high": return "High"
+        case "xhigh": return "xHigh"
+        case "max": return "Max"
+        default: return raw.prefix(1).uppercased() + raw.dropFirst()
+        }
+    }
+
+    /// Friendly plan name from the Keychain `subscriptionType`, e.g.
+    /// "pro" → "Pro", "max_20x" → "Max 20×".
+    static func planName(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let lower = raw.lowercased()
+        if lower.contains("max") {
+            if lower.contains("20") { return "Max 20×" }
+            if lower.contains("5") { return "Max 5×" }
+            return "Max"
+        }
+        if lower.hasPrefix("pro") { return "Pro" }
+        if lower.hasPrefix("free") { return "Free" }
+        if lower.hasPrefix("team") { return "Team" }
+        if lower.hasPrefix("enterprise") { return "Enterprise" }
+        return raw.prefix(1).uppercased() + raw.dropFirst()
+    }
+
     /// AppKit variant of `color(for:)` for the NSStatusItem title.
     static func nsColor(for value: Double?) -> NSColor {
         guard let value else { return .secondaryLabelColor }

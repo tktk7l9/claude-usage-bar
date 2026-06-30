@@ -6,10 +6,15 @@ struct UsagePopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("Claude 使用状況")
                     .font(.headline)
-                Spacer()
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             switch store.phase {
@@ -35,6 +40,15 @@ struct UsagePopover: View {
         .frame(width: 280)
     }
 
+    /// "プラン Pro · モデル Opus · 努力 xHigh" — omits unavailable parts.
+    private var subtitle: String? {
+        var parts: [String] = []
+        if let plan = store.plan { parts.append("プラン \(plan)") }
+        if let model = store.model { parts.append("モデル \(model)") }
+        if let effort = store.effort { parts.append("努力 \(effort)") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     @ViewBuilder private var meters: some View {
         VStack(alignment: .leading, spacing: 12) {
             MeterRow(title: "セッション", window: store.session)
@@ -57,21 +71,41 @@ struct UsagePopover: View {
     }
 
     private var footer: some View {
-        HStack {
-            if let relative = UsageFormat.relative(from: store.lastUpdated) {
-                Text("更新: \(relative)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+        VStack(alignment: .leading, spacing: 6) {
+            if store.org != nil || store.email != nil {
+                VStack(alignment: .leading, spacing: 1) {
+                    if let org = store.org {
+                        Text(org)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    if let email = store.email {
+                        Text(email)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
             }
-            Spacer()
-            Button("更新") {
-                Task { await store.refresh() }
+            HStack {
+                if let relative = UsageFormat.relative(from: store.lastUpdated) {
+                    Text("更新: \(relative)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+                Button("更新") {
+                    Task { await store.refresh() }
+                }
+                .buttonStyle(.borderless)
+                Button("終了") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .buttonStyle(.borderless)
             }
-            .buttonStyle(.borderless)
-            Button("終了") {
-                NSApplication.shared.terminate(nil)
-            }
-            .buttonStyle(.borderless)
         }
     }
 }

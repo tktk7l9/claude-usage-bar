@@ -17,10 +17,18 @@ final class UsageStore {
     private(set) var opus: UsageResponse.Window?
     private(set) var lastUpdated: Date?
     private(set) var phase: Phase = .loading
+    /// Account plan (e.g. "Pro"), Claude Code default model ("Opus") and effort
+    /// ("xHigh"). org/email come from the profile endpoint (fetched once).
+    private(set) var plan: String?
+    private(set) var model: String?
+    private(set) var effort: String?
+    private(set) var org: String?
+    private(set) var email: String?
 
     private let client = UsageClient()
     private var pollTask: Task<Void, Never>?
     private var lastAttempt: Date?
+    private var profileLoaded = false
     /// Extra seconds to wait before the next poll, set when rate-limited or on
     /// transient errors so we don't hammer the endpoint.
     private var backoff: TimeInterval = 0
@@ -44,6 +52,23 @@ final class UsageStore {
             Task { @MainActor in await self?.refresh() }
         }
         start()
+        Task { await loadProfile() }
+    }
+
+    /// Fetches account/org info once per launch (rarely changes). Best-effort:
+    /// on failure (e.g. transient 429) org/email simply stay hidden and we retry
+    /// on the next launch.
+    func loadProfile() async {
+        guard !profileLoaded else { return }
+        do {
+            let creds = try KeychainReader.read()
+            let profile = try await client.fetchProfile(token: creds.accessToken)
+            org = profile.organization?.name
+            email = profile.account?.email
+            if org != nil || email != nil { profileLoaded = true }
+        } catch {
+            // ignore; org/email are optional
+        }
     }
 
     /// Launches the background polling loop. Safe to call again; cancels any
@@ -67,9 +92,14 @@ final class UsageStore {
             return
         }
         lastAttempt = Date()
+        // Local, cheap, token-independent: refresh the configured model/effort.
+        let settings = ClaudeConfig.read()
+        model = UsageFormat.modelName(settings.model)
+        effort = UsageFormat.effortName(settings.effortLevel)
         do {
-            let token = try KeychainReader.readToken()
-            let response = try await client.fetch(token: token)
+            let creds = try KeychainReader.read()
+            plan = UsageFormat.planName(creds.subscriptionType)
+            let response = try await client.fetch(token: creds.accessToken)
             session = response.fiveHour
             weekly = response.sevenDay
             opus = response.sevenDayOpus

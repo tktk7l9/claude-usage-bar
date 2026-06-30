@@ -22,8 +22,17 @@ enum Main {
         Task {
             defer { done.signal() }
             do {
-                let token = try KeychainReader.readToken()
-                let response = try await UsageClient().fetch(token: token)
+                let creds = try KeychainReader.read()
+                let settings = ClaudeConfig.read()
+                let client = UsageClient()
+                print("plan:     \(UsageFormat.planName(creds.subscriptionType) ?? "?")")
+                print("model:    \(UsageFormat.modelName(settings.model) ?? "?")")
+                print("effort:   \(UsageFormat.effortName(settings.effortLevel) ?? "?")")
+                if let profile = try? await client.fetchProfile(token: creds.accessToken) {
+                    print("org:      \(profile.organization?.name ?? "?")")
+                    print("email:    \(profile.account?.email ?? "?")")
+                }
+                let response = try await client.fetch(token: creds.accessToken)
                 let s = response.fiveHour
                 let w = response.sevenDay
                 print("session:  \(UsageFormat.percentText(s?.utilization))  resets \(UsageFormat.resetDescription(s?.resetsAt) ?? "?")")

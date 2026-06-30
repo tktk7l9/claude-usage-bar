@@ -30,6 +30,22 @@ struct UsageResponse: Decodable {
     }
 }
 
+/// Response from `GET https://api.anthropic.com/api/oauth/profile` — account
+/// and organization metadata. Decoded with `.convertFromSnakeCase`; all fields
+/// optional so a schema change degrades gracefully.
+struct ProfileResponse: Decodable {
+    struct Account: Decodable {
+        let email: String?
+        let displayName: String?
+    }
+    struct Organization: Decodable {
+        let name: String?
+        let subscriptionStatus: String?
+    }
+    let account: Account?
+    let organization: Organization?
+}
+
 /// Lenient ISO8601 parser. The endpoint returns microsecond precision which
 /// `ISO8601DateFormatter` with `.withFractionalSeconds` does not always accept,
 /// so fall back to stripping the fractional part.
