@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 
 /// Lightweight, dependency-free unit checks for the pure formatting/parsing
 /// logic. Run with `swift run ClaudeUsageBar --selftest` (exits non-zero on
@@ -76,6 +78,23 @@ enum SelfTest {
         // countdown
         check(UsageFormat.countdown(to: Date(timeIntervalSinceNow: -60)) == nil, "countdown(past)")
         check(UsageFormat.countdown(to: Date(timeIntervalSinceNow: 3600)) != nil, "countdown(future)")
+
+        // color mapping (SwiftUI + AppKit) by severity
+        check(UsageFormat.color(for: nil) == Color.secondary, "color(nil)")
+        check(UsageFormat.color(for: 50) == Color.green, "color(50)=green")
+        check(UsageFormat.color(for: 80) == Color.yellow, "color(80)=yellow")
+        check(UsageFormat.color(for: 95) == Color.red, "color(95)=red")
+        check(UsageFormat.nsColor(for: nil) == NSColor.secondaryLabelColor, "nsColor(nil)")
+        check(UsageFormat.nsColor(for: 50) == NSColor.systemGreen, "nsColor(50)=green")
+        check(UsageFormat.nsColor(for: 80) == NSColor.systemYellow, "nsColor(80)=yellow")
+        check(UsageFormat.nsColor(for: 95) == NSColor.systemRed, "nsColor(95)=red")
+
+        // reset/relative display
+        check(UsageFormat.resetDescription(nil) == nil, "resetDescription(nil)")
+        check(UsageFormat.resetDescription("2027-01-15T12:00:00Z") != nil, "resetDescription(future w/ countdown)")
+        check(UsageFormat.resetDescription("2020-01-01T00:00:00Z") != nil, "resetDescription(past, no countdown)")
+        check(UsageFormat.relative(from: nil) == nil, "relative(nil)")
+        check(UsageFormat.relative(from: Date(timeIntervalSinceNow: -120)) != nil, "relative(past)")
 
         // reauthNotice: only within the next hour
         check(UsageFormat.reauthNotice(expiresAt: nil) == nil, "reauthNotice(nil)")
